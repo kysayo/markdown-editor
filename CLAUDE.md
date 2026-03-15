@@ -54,6 +54,47 @@ pnpm tauri build
 
 `src-tauri/target/release/` 以下に実行ファイルが生成される。
 
+## Milkdown の内部 node/mark 名の調査方法
+
+Milkdown の公式ドキュメントには ProseMirror の schema（node 名・mark 名）の一覧が記載されていない。
+実装時に `schema.nodes.xxx` や `schema.marks.xxx` の名前が必要な場合は、以下の手順で確認する。
+
+### 調査すべきタイミング
+
+- ProseMirror コマンド（`setBlockType`, `toggleMark`, `wrapIn` など）で node/mark を指定するとき
+- カスタムプラグインで `parseMarkdown.match` の `node.type` を判定するとき
+- `schema.nodes.xxx` が `undefined` になるエラーが出たとき
+
+### 調査方法
+
+pnpm は実際のパッケージを `.pnpm/` 配下に展開している。以下のパスに実装ファイルがある：
+
+```bash
+# commonmark プリセットの node 名（paragraph, code_block, blockquote など）
+node_modules/.pnpm/@milkdown+preset-commonmark@7.19.0/node_modules/@milkdown/preset-commonmark/lib/index.js
+
+# GFM プリセットの node 名（table, table_row, table_header_row, table_header, table_cell など）
+node_modules/.pnpm/@milkdown+preset-gfm@7.19.0/node_modules/@milkdown/preset-gfm/lib/index.js
+```
+
+grep で node/mark 名を検索する例：
+
+```bash
+grep -o '"[a-z_]*"' node_modules/.pnpm/@milkdown+preset-gfm@7.19.0/.../lib/index.js | sort -u
+```
+
+### 確認済みの主な node/mark 名
+
+| プリセット | 種別 | 名前 |
+|---|---|---|
+| commonmark | node | `paragraph`, `code_block`, `blockquote`, `heading`, `hr`, `image`, `hardbreak` |
+| commonmark | mark | `strong`, `emphasis`, `inline_code`, `link` |
+| GFM | node | `table`, `table_header_row`, `table_row`, `table_header`, `table_cell` |
+| GFM | mark | `strike_through` |
+| カスタム | mark | `mark`（ハイライト）, `superscript`, `subscript`, `underline` |
+
+GFM テーブルの構造: `table > table_header_row > table_header`（ヘッダー行）、`table > table_row > table_cell`（データ行）
+
 ## 参考
 
 - [MarkText（参考にするエディター）](https://github.com/marktext/marktext)

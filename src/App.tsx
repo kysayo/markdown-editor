@@ -13,7 +13,7 @@ import { emoji } from "@milkdown/plugin-emoji";
 import { $prose } from "@milkdown/kit/utils";
 import { gapCursor } from "@milkdown/kit/prose/gapcursor";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
-import { toggleMark } from "@milkdown/kit/prose/commands";
+import { toggleMark, setBlockType, wrapIn, lift } from "@milkdown/kit/prose/commands";
 import { FloatingToolbar, type SelectionInfo, type FormatType } from "./FloatingToolbar";
 import "katex/dist/katex.min.css";
 import "@milkdown/kit/prose/gapcursor/style/gapcursor.css";
@@ -32,6 +32,8 @@ import {
   subscriptInputRule,
   supersuperStringifyHandlers,
 } from "./plugins/supersub";
+import { underlineSchema, underlineStringifyHandlers } from "./plugins/underline";
+import { TableInsertDialog } from "./TableInsertDialog";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile, writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -116,6 +118,7 @@ function MilkdownEditor({
           handlers: {
             ...highlightStringifyHandlers,
             ...supersuperStringifyHandlers,
+            ...underlineStringifyHandlers,
           } as any,
         });
         ctx.get(listenerCtx).markdownUpdated(() => {
@@ -137,6 +140,7 @@ function MilkdownEditor({
       .use(subscriptSchema)
       .use(superscriptInputRule)
       .use(subscriptInputRule)
+      .use(underlineSchema)
       .use($prose(() => gapCursor()))
       .use($prose(() => new Plugin({
         props: {
@@ -254,6 +258,7 @@ function App() {
   const isLoadingRef = useRef(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
   const [frontmatter, setFrontmatter] = useState("");
   const frontmatterRef = useRef("");
@@ -421,6 +426,37 @@ function App() {
       await handleSaveAs();
     }
   }, [currentPath, getCurrentContent, setIsDirty, handleSaveAs]);
+
+  const handleInsertTable = useCallback((rows: number, cols: number) => {
+    const view = editorRef.current?.getEditorView();
+    if (!view) return;
+    const { state } = view;
+    const { schema } = state;
+    // Milkdown GFM テーブルの node 構造:
+    //   table > table_header_row > table_header（ヘッダー行）
+    //   table > table_row > table_cell（データ行）
+    const tableNode = schema.nodes.table;
+    const tableHeaderRowNode = schema.nodes.table_header_row;
+    const tableRowNode = schema.nodes.table_row;
+    const tableHeaderNode = schema.nodes.table_header;
+    const tableCellNode = schema.nodes.table_cell;
+    const paragraphNode = schema.nodes.paragraph;
+    if (!tableNode || !tableHeaderRowNode || !tableRowNode || !tableHeaderNode || !tableCellNode) return;
+    const headerCells = Array.from({ length: cols }, () =>
+      tableHeaderNode.create(null, paragraphNode.create())
+    );
+    const headerRow = tableHeaderRowNode.create(null, headerCells);
+    const bodyRows = Array.from({ length: rows - 1 }, () => {
+      const cells = Array.from({ length: cols }, () =>
+        tableCellNode.create(null, paragraphNode.create())
+      );
+      return tableRowNode.create(null, cells);
+    });
+    const table = tableNode.create(null, [headerRow, ...bodyRows]);
+    view.dispatch(state.tr.replaceSelectionWith(table));
+    setIsTableDialogOpen(false);
+    view.focus();
+  }, []);
 
   // WYSIWYGモード ↔ ソースモード切替
   const handleToggleSource = useCallback(() => {
@@ -619,17 +655,105 @@ function App() {
     };
   }, []);
 
-  // Ctrl+/ キーボードショートカット（CheckMenuItemのacceleratorが機能しないため）
+  // キーボードショートカット（capture: true で ProseMirror より先に捕捉）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === '/') {
+      // Ctrl+/ → ソースモード切替（CheckMenuItemのacceleratorが機能しないため）
+      if (e.ctrlKey && !e.shiftKey && e.key === '/') {
         e.preventDefault();
         handlersRef.current.handleToggleSource();
+        return;
+      }
+
+      // 以下は WYSIWYGモード専用
+      if (isSourceMode) return;
+      const view = editorRef.current?.getEditorView();
+      if (!view) return;
+      const { state, dispatch } = view;
+      const { schema } = state;
+
+      // Ctrl+D → 打ち消し線
+      if (e.ctrlKey && !e.shiftKey && e.key === 'd') {
+        e.preventDefault();
+        toggleMark(schema.marks.strike_through)(state, dispatch);
+        return;
+      }
+
+      // Ctrl+U → 下線
+      if (e.ctrlKey && !e.shiftKey && e.key === 'u') {
+        e.preventDefault();
+        toggleMark(schema.marks.underline)(state, dispatch);
+        return;
+      }
+
+      // Ctrl+Shift+E → 文字修飾を消す（Erase formatting）
+      if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+        e.preventDefault();
+        const { from, to } = state.selection;
+        if (from !== to) {
+          let tr = state.tr;
+          Object.values(schema.marks).forEach((markType: any) => {
+            tr = tr.removeMark(from, to, markType);
+          });
+          dispatch(tr);
+        }
+        return;
+      }
+
+      // Ctrl+Shift+K → コードブロック切り替え
+      if (e.ctrlKey && e.shiftKey && e.key === 'K') {
+        e.preventDefault();
+        const isCodeBlock = state.selection.$from.parent.type === schema.nodes.code_block;
+        if (isCodeBlock) {
+          setBlockType(schema.nodes.paragraph)(state, dispatch);
+        } else {
+          setBlockType(schema.nodes.code_block)(state, dispatch);
+        }
+        return;
+      }
+
+      // Ctrl+Shift+Q → 引用ブロック切り替え
+      if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
+        e.preventDefault();
+        const inBlockquote = state.selection.$from.node(-1)?.type === schema.nodes.blockquote;
+        if (inBlockquote) {
+          lift(state, dispatch);
+        } else {
+          wrapIn(schema.nodes.blockquote)(state, dispatch);
+        }
+        return;
+      }
+
+      // Ctrl+Shift+T → テーブル挿入ダイアログ
+      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+        e.preventDefault();
+        setIsTableDialogOpen(true);
+        return;
+      }
+
+      // Ctrl+Shift+V → プレーンテキスト貼り付け
+      // navigator.clipboard.readText() は Tauri WebView で権限エラーになるため
+      // 一時 textarea に execCommand('paste') してプレーンテキストを取り出す
+      if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+        e.preventDefault();
+        const tmp = document.createElement('textarea');
+        tmp.style.cssText = 'position:fixed;left:-9999px;opacity:0;pointer-events:none;';
+        document.body.appendChild(tmp);
+        tmp.focus();
+        const pasted = document.execCommand('paste');
+        const text = tmp.value;
+        tmp.remove();
+        view.focus();
+        if (pasted && text) {
+          const { state: s, dispatch: d } = view;
+          d(s.tr.insertText(text));
+        }
+        return;
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [isSourceMode]);
 
   // .mdファイルのドラッグ&ドロップで開く
   useEffect(() => {
@@ -651,6 +775,12 @@ function App() {
   return (
     <MilkdownProvider>
       {isSettingsOpen && <SettingsDialog onClose={() => setIsSettingsOpen(false)} />}
+      {isTableDialogOpen && (
+        <TableInsertDialog
+          onClose={() => setIsTableDialogOpen(false)}
+          onInsert={handleInsertTable}
+        />
+      )}
       <div className="app-container">
         <div className="editor-main">
           {/* WYSIWYGエディター：ソースモード時は非表示（アンマウントしない） */}
