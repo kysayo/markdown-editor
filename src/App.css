@@ -167,3 +167,18 @@
   font-size: 0.75em;
   vertical-align: sub;
 }
+.milkdown .editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+.milkdown .editor th,
+.milkdown .editor td {
+  border: 1px solid #cbd5e1;
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+.milkdown .editor th {
+  background: #f1f5f9;
+  font-weight: 600;
+}

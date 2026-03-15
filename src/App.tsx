@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Editor, rootCtx, defaultValueCtx, remarkStringifyOptionsCtx } from "@milkdown/kit/core";
+import { Editor, rootCtx, defaultValueCtx, remarkStringifyOptionsCtx, editorViewCtx } from "@milkdown/kit/core";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
@@ -12,7 +12,7 @@ import { math } from "@milkdown/plugin-math";
 import { emoji } from "@milkdown/plugin-emoji";
 import { $prose } from "@milkdown/kit/utils";
 import { gapCursor } from "@milkdown/kit/prose/gapcursor";
-import { NodeSelection, Plugin } from "@milkdown/kit/prose/state";
+import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import "katex/dist/katex.min.css";
 import "@milkdown/kit/prose/gapcursor/style/gapcursor.css";
 import "@milkdown/kit/prose/view/style/prosemirror.css";
@@ -84,6 +84,8 @@ interface EditorRef {
   getContent: () => string;
   setContent: (md: string) => void;
   insertContent: (md: string) => void;
+  getCursorInfo: () => { markedMd: string; marker: string; ratio: number };
+  setCursorByMarker: (marker: string) => void;
 }
 
 function MilkdownEditor({
@@ -147,6 +149,60 @@ function MilkdownEditor({
         getContent: () => editor.action(getMarkdown()),
         setContent: (md: string) => editor.action(replaceAll(md)),
         insertContent: (md: string) => editor.action(insert(md)),
+        getCursorInfo: () => editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const { from } = view.state.selection;
+          const doc = view.state.doc;
+          // フォールバック用テキスト比率
+          const textBefore = doc.textBetween(0, from, '\n');
+          const totalText = doc.textBetween(0, doc.content.size, '\n');
+          const ratio = totalText.length > 0 ? textBefore.length / totalText.length : 0;
+          const MARKER = '«CURSOR»';
+          try {
+            // undoヒストリー対象外でマーカーをカーソール位置に挿入
+            view.dispatch(view.state.tr
+              .insertText(MARKER, from)
+              .setMeta('addToHistory', false)
+            );
+            // マーカー付きmarkdownを取得
+            const md = editor.action(getMarkdown());
+            // マーカーを即座に削除（ヒストリー対象外）
+            view.dispatch(view.state.tr
+              .delete(from, from + MARKER.length)
+              .setMeta('addToHistory', false)
+            );
+            return { markedMd: md, marker: MARKER, ratio };
+          } catch {
+            return { markedMd: editor.action(getMarkdown()), marker: '', ratio };
+          }
+        }),
+        setCursorByMarker: (marker: string) => editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const doc = view.state.doc;
+          // ドキュメント内でマーカーテキストを検索
+          let markerDocPos = -1;
+          doc.descendants((node, pos) => {
+            if (markerDocPos !== -1) return false;
+            if (node.isText && node.text?.includes(marker)) {
+              markerDocPos = pos + node.text.indexOf(marker);
+              return false;
+            }
+          });
+          if (markerDocPos !== -1) {
+            // マーカーを削除してカーソールをその位置にセット（ヒストリー対象外）
+            const tr = view.state.tr
+              .delete(markerDocPos, markerDocPos + marker.length)
+              .setMeta('addToHistory', false);
+            try {
+              tr.setSelection(TextSelection.create(tr.doc, markerDocPos));
+            } catch { /* 削除後の位置が無効な場合は無視 */ }
+            view.dispatch(tr.scrollIntoView());
+          } else {
+            // マーカーが見つからない場合はスクロールのみ
+            view.dispatch(view.state.tr.scrollIntoView());
+          }
+          (view.dom as HTMLElement).focus({ preventScroll: true });
+        }),
       };
     }
   });
@@ -265,27 +321,60 @@ function App() {
   // WYSIWYGモード ↔ ソースモード切替
   const handleToggleSource = useCallback(() => {
     if (!isSourceMode) {
-      // WYSIWYG → ソース：フロントマター + 本文をtextareaにセット
-      // 空段落が <br /> にシリアライズされるので空行に置換する
-      const rawMd = unemojify(editorRef.current?.getContent() ?? "");
-      const md = rawMd.replace(/^<br\s*\/?>\s*$/gm, "");
+      // WYSIWYG → ソース：一時マーカーをカーソール位置に埋め込んでmarkdown内の正確な位置を取得
+      // getCursorInfo 内の dispatch が markdownUpdated → onDirty() を呼ぶのを防ぐ
+      isLoadingRef.current = true;
+      const cursorInfo = editorRef.current?.getCursorInfo()
+        ?? { markedMd: '', marker: '', ratio: 0 };
+      isLoadingRef.current = false;
+
+      // マーカー付きmarkdownを整形（空段落の <br /> を空行に置換）
+      const rawMd = unemojify(cursorInfo.markedMd || (editorRef.current?.getContent() ?? ''));
+      const cleanMd = rawMd.replace(/^<br\s*\/?>\s*$/gm, "");
+
+      // マーカー位置を特定してマーカーを除去
+      const markerIdx = cursorInfo.marker ? cleanMd.indexOf(cursorInfo.marker) : -1;
+      let finalMd: string;
+      let bodyOffset: number;
+      if (markerIdx !== -1) {
+        finalMd = cleanMd.slice(0, markerIdx) + cleanMd.slice(markerIdx + cursorInfo.marker.length);
+        bodyOffset = markerIdx; // 正確な位置
+      } else {
+        finalMd = cleanMd;
+        bodyOffset = Math.floor(cursorInfo.ratio * finalMd.length); // フォールバック
+      }
+
       if (textareaRef.current) {
-        textareaRef.current.value = frontmatterRef.current + md;
+        textareaRef.current.value = frontmatterRef.current + finalMd;
       }
       setIsSourceMode(true);
-      setTimeout(() => textareaRef.current?.focus(), 0);
+      setTimeout(() => {
+        const ta = textareaRef.current;
+        if (ta) {
+          const pos = frontmatterRef.current.length + bodyOffset;
+          ta.focus();
+          ta.setSelectionRange(pos, pos);
+        }
+      }, 0);
     } else {
-      // ソース → WYSIWYG：フロントマターを再抽出して本文だけMilkdownへ
-      const full = textareaRef.current?.value ?? "";
+      // ソース → WYSIWYG：マーカーをカーソール位置に埋め込んでProseMirrorでカーソールを復元
+      const MARKER = '«CURSOR»';
+      const ta = textareaRef.current;
+      const full = ta?.value ?? "";
+      const cursorPos = ta?.selectionStart ?? 0;
       const { fm, body } = extractFrontmatter(full);
       frontmatterRef.current = fm;
       setFrontmatter(fm);
+      // bodyの中でのカーソール位置（フロントマター分を引く）
+      const bodyOffset = Math.max(0, cursorPos - fm.length);
+      const bodyWithMarker = body.slice(0, bodyOffset) + MARKER + body.slice(bodyOffset);
       isLoadingRef.current = true;
-      editorRef.current?.setContent(body);
+      editorRef.current?.setContent(bodyWithMarker);
+      setIsSourceMode(false);
       setTimeout(() => {
         isLoadingRef.current = false;
-      }, 0);
-      setIsSourceMode(false);
+        editorRef.current?.setCursorByMarker(MARKER);
+      }, 50);
     }
   }, [isSourceMode]);
 
