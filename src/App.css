@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:root {
+  --heading-spacing: 0.9em;
+  --list-spacing: 0.75em;
+}
+
 /* アプリ全体レイアウト */
 .app-container {
   display: flex;
@@ -30,6 +35,93 @@
   resize: none;
   box-sizing: border-box;
   tab-size: 2;
+}
+
+/* フローティングツールバー */
+.floating-toolbar {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  background: #1e293b;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+  animation: ftb-fadein 0.12s ease;
+}
+
+@keyframes ftb-fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.floating-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 5px;
+  background: transparent;
+  color: #cbd5e1;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.floating-toolbar-btn:hover {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+.floating-toolbar-btn.active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.floating-toolbar-btn.kb-focus {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
+}
+
+.floating-toolbar-btn.active.kb-focus {
+  outline-color: #fff;
+}
+
+.ftb-bold   { font-weight: 700; }
+.ftb-italic { font-style: italic; }
+.ftb-strike { text-decoration: line-through; }
+.ftb-code   { font-family: monospace; font-size: 11px; }
+.ftb-highlight { background: #fef08a !important; color: #1e293b !important; }
+.ftb-highlight.active { background: #eab308 !important; color: #fff !important; }
+.ftb-confirm { color: #4ade80 !important; font-size: 15px; }
+.ftb-cancel  { color: #f87171 !important; font-size: 15px; }
+
+.floating-toolbar-url-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+  background: #334155;
+  color: #f1f5f9;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  min-width: 0;
+}
+
+.floating-toolbar-url-input::placeholder {
+  color: #64748b;
+}
+
+.floating-toolbar-url-input:focus {
+  border-color: #60a5fa;
 }
 
 /* ステータスバー */
@@ -116,15 +208,18 @@
 }
 
 /* Markdown レンダリングスタイル */
-.milkdown .editor h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; }
-.milkdown .editor h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
-.milkdown .editor h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+.milkdown .editor a { color: #2563eb; text-decoration: underline; cursor: pointer; }
+.milkdown .editor a:hover { color: #1d4ed8; }
+.milkdown .editor h1 { font-size: 2em; font-weight: bold; margin: calc(var(--heading-spacing) * 1.5) 0; }
+.milkdown .editor h2 { font-size: 1.5em; font-weight: bold; margin: calc(var(--heading-spacing) * 1.2) 0; }
+.milkdown .editor h3 { font-size: 1.17em; font-weight: bold; margin: var(--heading-spacing) 0; }
 .milkdown .editor p { margin: 0.75em 0; line-height: 1.7; }
 .milkdown .editor ul { list-style: disc; padding-left: 1.5em; }
 .milkdown .editor ul ul { list-style: circle; }
 .milkdown .editor ul ul ul { list-style: square; }
 .milkdown .editor ol { list-style: decimal; padding-left: 1.5em; }
-.milkdown .editor li { margin: 0.25em 0; }
+.milkdown .editor li { margin: var(--list-spacing) 0; }
+.milkdown .editor li > p { margin-top: 0; margin-bottom: 0; line-height: 1.7; }
 .milkdown .editor blockquote {
   border-left: 4px solid #e2e8f0;
   padding-left: 1em;
@@ -181,4 +276,95 @@
 .milkdown .editor th {
   background: #f1f5f9;
   font-weight: 600;
+}
+
+/* 設定ダイアログ */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-dialog {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  padding: 1.5rem 2rem 1.25rem;
+  min-width: 320px;
+  max-width: 400px;
+  width: 100%;
+}
+
+.settings-dialog h2 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+  color: #1e293b;
+}
+
+.settings-row {
+  margin-bottom: 1.1rem;
+}
+
+.settings-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875em;
+  color: #475569;
+  margin-bottom: 0.35rem;
+}
+
+.settings-number-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.settings-number-input {
+  width: 4.5em;
+  padding: 0.1em 0.3em;
+  font-size: 0.9em;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  text-align: right;
+  outline: none;
+}
+
+.settings-number-input:focus {
+  border-color: #3b82f6;
+}
+
+.settings-unit {
+  font-size: 0.85em;
+  color: #94a3b8;
+}
+
+.settings-row input[type="range"] {
+  width: 100%;
+  accent-color: #3b82f6;
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.settings-close-btn {
+  padding: 0.35em 1.2em;
+  font-size: 0.875em;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.settings-close-btn:hover {
+  background: #2563eb;
 }

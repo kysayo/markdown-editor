@@ -13,6 +13,8 @@ import { emoji } from "@milkdown/plugin-emoji";
 import { $prose } from "@milkdown/kit/utils";
 import { gapCursor } from "@milkdown/kit/prose/gapcursor";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
+import { toggleMark } from "@milkdown/kit/prose/commands";
+import { FloatingToolbar, type SelectionInfo, type FormatType } from "./FloatingToolbar";
 import "katex/dist/katex.min.css";
 import "@milkdown/kit/prose/gapcursor/style/gapcursor.css";
 import "@milkdown/kit/prose/view/style/prosemirror.css";
@@ -33,8 +35,11 @@ import {
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile, writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { CheckMenuItem } from "@tauri-apps/api/menu";
 import { useFileStore } from "./store/fileStore";
+import { useSettingsStore } from "./store/settingsStore";
+import { SettingsDialog } from "./SettingsDialog";
 import "./App.css";
 
 // フロントマター抽出ユーティリティ
@@ -86,15 +91,21 @@ interface EditorRef {
   insertContent: (md: string) => void;
   getCursorInfo: () => { markedMd: string; marker: string; ratio: number };
   setCursorByMarker: (marker: string) => void;
+  getEditorView: () => any;
 }
 
 function MilkdownEditor({
   editorRef,
   onDirty,
+  onSelectionChange,
 }: {
   editorRef: React.RefObject<EditorRef | null>;
   onDirty: () => void;
+  onSelectionChange: (info: SelectionInfo | null) => void;
 }) {
+  const selectionCallbackRef = useRef(onSelectionChange);
+  useEffect(() => { selectionCallbackRef.current = onSelectionChange; });
+
   const { get } = useEditor((root) =>
     Editor.make()
       .config((ctx) => {
@@ -140,6 +151,32 @@ function MilkdownEditor({
           },
         },
       })))
+      .use($prose(() => new Plugin({
+        view: () => ({
+          update: (view, prevState) => {
+            if (view.state.selection.eq(prevState.selection)) return;
+            const { from, to } = view.state.selection;
+            if (from === to || !(view.state.selection instanceof TextSelection)) {
+              selectionCallbackRef.current(null);
+              return;
+            }
+            const startCoords = view.coordsAtPos(from);
+            const endCoords = view.coordsAtPos(to);
+            const activeMarks = new Set<string>();
+            const marks = view.state.storedMarks ?? view.state.selection.$from.marks();
+            marks.forEach((m) => activeMarks.add(m.type.name));
+            selectionCallbackRef.current({
+              rect: {
+                top: startCoords.top,
+                bottom: Math.max(startCoords.bottom, endCoords.bottom),
+                left: Math.min(startCoords.left, endCoords.left),
+                right: Math.max(startCoords.right, endCoords.right),
+              },
+              activeMarks,
+            });
+          },
+        }),
+      })))
   );
 
   useEffect(() => {
@@ -176,6 +213,7 @@ function MilkdownEditor({
             return { markedMd: editor.action(getMarkdown()), marker: '', ratio };
           }
         }),
+        getEditorView: () => editor.action((ctx) => ctx.get(editorViewCtx)),
         setCursorByMarker: (marker: string) => editor.action((ctx) => {
           const view = ctx.get(editorViewCtx);
           const doc = view.state.doc;
@@ -215,9 +253,18 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isLoadingRef = useRef(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
   const [frontmatter, setFrontmatter] = useState("");
   const frontmatterRef = useRef("");
   const { currentPath, isDirty, setCurrentPath, setIsDirty } = useFileStore();
+  const { headingSpacing, listSpacing } = useSettingsStore();
+
+  // CSS変数で余白をリアルタイム反映
+  useEffect(() => {
+    document.documentElement.style.setProperty("--heading-spacing", `${headingSpacing}em`);
+    document.documentElement.style.setProperty("--list-spacing", `${listSpacing}em`);
+  }, [headingSpacing, listSpacing]);
 
   const handleFrontmatterChange = useCallback((raw: string) => {
     frontmatterRef.current = raw;
@@ -230,6 +277,7 @@ function App() {
     handleSave: async () => {},
     handleSaveAs: async () => {},
     handleToggleSource: () => {},
+    handleOpenSettings: () => {},
   });
 
   // CheckMenuItem の ref
@@ -248,6 +296,59 @@ function App() {
       setIsDirty(true);
     }
   }, [setIsDirty]);
+
+  const handleSelectionChange = useCallback((info: SelectionInfo | null) => {
+    setSelectionInfo(info);
+  }, []);
+
+  const handleFormat = useCallback((type: FormatType, attrs?: Record<string, string>) => {
+    const view = editorRef.current?.getEditorView();
+    if (!view) return;
+    const { state, dispatch } = view;
+    const { schema } = state;
+    switch (type) {
+      case "bold":
+        toggleMark(schema.marks.strong)(state, dispatch);
+        break;
+      case "italic":
+        toggleMark(schema.marks.emphasis)(state, dispatch);
+        break;
+      case "strike":
+        toggleMark(schema.marks.strike_through)(state, dispatch);
+        break;
+      case "code":
+        toggleMark(schema.marks.inlineCode)(state, dispatch);
+        break;
+      case "highlight":
+        toggleMark(schema.marks.mark)(state, dispatch);
+        break;
+      case "superscript":
+        toggleMark(schema.marks.superscript)(state, dispatch);
+        break;
+      case "subscript":
+        toggleMark(schema.marks.subscript)(state, dispatch);
+        break;
+      case "link": {
+        const linkMark = schema.marks.link;
+        if (!linkMark) break;
+        if (attrs?.href) {
+          toggleMark(linkMark, { href: attrs.href, title: "" })(state, dispatch);
+        } else {
+          // hrefなし = リンク解除
+          toggleMark(linkMark)(state, dispatch);
+        }
+        break;
+      }
+      case "image": {
+        const { from, to } = state.selection;
+        const altText = state.doc.textBetween(from, to);
+        const imageNode = schema.nodes.image?.create({ src: "", alt: altText, title: "" });
+        if (imageNode) dispatch(state.tr.replaceSelectionWith(imageNode));
+        break;
+      }
+    }
+    view.focus();
+  }, []);
 
   // 現在のモードに応じてコンテンツを取得（フロントマターを含む）
   const getCurrentContent = useCallback(() => {
@@ -271,6 +372,22 @@ function App() {
     }, 0);
   }, [setCurrentPath, setIsDirty]);
 
+  const handleLoadFile = useCallback(async (filePath: string) => {
+    const content = await readTextFile(filePath);
+    const { fm, body } = extractFrontmatter(content);
+    frontmatterRef.current = fm;
+    setFrontmatter(fm);
+    isLoadingRef.current = true;
+    editorRef.current?.setContent(body);
+    if (textareaRef.current) textareaRef.current.value = content;
+    setCurrentPath(filePath);
+    setIsDirty(false);
+    setIsSourceMode(false);
+    setTimeout(() => {
+      isLoadingRef.current = false;
+    }, 0);
+  }, [setCurrentPath, setIsDirty]);
+
   const handleOpen = useCallback(async () => {
     const selected = await open({
       filters: [
@@ -280,21 +397,8 @@ function App() {
       ],
     });
     if (!selected) return;
-
-    const content = await readTextFile(selected as string);
-    const { fm, body } = extractFrontmatter(content);
-    frontmatterRef.current = fm;
-    setFrontmatter(fm);
-    isLoadingRef.current = true;
-    editorRef.current?.setContent(body);
-    if (textareaRef.current) textareaRef.current.value = content;
-    setCurrentPath(selected as string);
-    setIsDirty(false);
-    setIsSourceMode(false);
-    setTimeout(() => {
-      isLoadingRef.current = false;
-    }, 0);
-  }, [setCurrentPath, setIsDirty]);
+    await handleLoadFile(selected as string);
+  }, [handleLoadFile]);
 
   const handleSaveAs = useCallback(async () => {
     const content = getCurrentContent();
@@ -430,6 +534,7 @@ function App() {
       handleSave,
       handleSaveAs,
       handleToggleSource,
+      handleOpenSettings: () => setIsSettingsOpen(true),
     };
   }, [handleNew, handleOpen, handleSave, handleSaveAs, handleToggleSource]);
 
@@ -486,9 +591,19 @@ function App() {
         ],
       });
 
+      const settingsItem = await MenuItem.new({
+        id: "settings",
+        text: "設定(&P)...",
+        action: () => handlersRef.current.handleOpenSettings(),
+      });
+
       const viewMenu = await Submenu.new({
         text: "表示(&V)",
-        items: [toggleItem],
+        items: [
+          toggleItem,
+          await PredefinedMenuItem.new({ item: "Separator" }),
+          settingsItem,
+        ],
       });
 
       const menu = await Menu.new({ items: [fileMenu, viewMenu] });
@@ -516,6 +631,18 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // .mdファイルのドラッグ&ドロップで開く
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type === 'drop') {
+        const mdFile = event.payload.paths.find(p => p.toLowerCase().endsWith('.md'));
+        if (mdFile) handleLoadFile(mdFile);
+      }
+    }).then(fn => { unlisten = fn; });
+    return () => unlisten?.();
+  }, [handleLoadFile]);
+
   // ソースモード切替時にメニューのチェックマークを更新
   useEffect(() => {
     toggleSourceItemRef.current?.setChecked(isSourceMode).catch(() => {});
@@ -523,12 +650,17 @@ function App() {
 
   return (
     <MilkdownProvider>
+      {isSettingsOpen && <SettingsDialog onClose={() => setIsSettingsOpen(false)} />}
       <div className="app-container">
         <div className="editor-main">
           {/* WYSIWYGエディター：ソースモード時は非表示（アンマウントしない） */}
           <div style={{ display: isSourceMode ? "none" : "block", height: "100%" }}>
             <FrontMatterBlock frontmatter={frontmatter} onChange={handleFrontmatterChange} />
-            <MilkdownEditor editorRef={editorRef} onDirty={handleDirty} />
+            <MilkdownEditor
+              editorRef={editorRef}
+              onDirty={handleDirty}
+              onSelectionChange={handleSelectionChange}
+            />
           </div>
           {/* ソースエディター：常時マウント、WYSIWYGモード時は非表示 */}
           <textarea
@@ -541,6 +673,10 @@ function App() {
             autoCorrect="off"
           />
         </div>
+        {!isSourceMode && (
+          <FloatingToolbar selectionInfo={selectionInfo} onFormat={handleFormat} />
+
+        )}
         {/* ステータスバー */}
         <div className="status-bar">
           <span className="status-mode">
