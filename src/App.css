@@ -50,6 +50,55 @@
   /* 左端に表示 */
 }
 
+/* フロントマターブロック */
+.frontmatter-block {
+  max-width: 860px;
+  margin: 1.5rem auto 0;
+  padding: 0 3rem;
+}
+
+.frontmatter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  user-select: none;
+}
+
+.frontmatter-editor {
+  width: 100%;
+  padding: 0.75em 1em;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  outline: none;
+  resize: vertical;
+  min-height: 3em;
+  box-sizing: border-box;
+  tab-size: 2;
+}
+
+.frontmatter-editor:focus {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+/* ProseMirror ノード選択・gapcursor のスタイル上書き */
+.milkdown .editor .ProseMirror-selectednode {
+  outline: 2px solid #60a5fa;
+}
+
+/* gapcursor（非テキストノードの前後に表示される点滅カーソル）を黒色に */
+.milkdown .editor .ProseMirror-gapcursor:after {
+  border-top: 2px solid #1e293b;
+}
+
 /* twemoji 絵文字サイズ */
 .milkdown .editor img.emoji {
   height: 1.2em;
@@ -72,6 +121,8 @@
 .milkdown .editor h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
 .milkdown .editor p { margin: 0.75em 0; line-height: 1.7; }
 .milkdown .editor ul { list-style: disc; padding-left: 1.5em; }
+.milkdown .editor ul ul { list-style: circle; }
+.milkdown .editor ul ul ul { list-style: square; }
 .milkdown .editor ol { list-style: decimal; padding-left: 1.5em; }
 .milkdown .editor li { margin: 0.25em 0; }
 .milkdown .editor blockquote {
@@ -99,6 +150,20 @@
 }
 .milkdown .editor hr {
   border: none;
-  border-top: 1px solid #e2e8f0;
+  border-top: 2px solid #94a3b8;
   margin: 1.5em 0;
+}
+.milkdown .editor mark {
+  background: #fef08a;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+.milkdown .editor sup {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+.milkdown .editor sub {
+  font-size: 0.75em;
+  vertical-align: sub;
 }

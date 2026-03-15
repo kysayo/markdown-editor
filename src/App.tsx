@@ -6,21 +6,84 @@ import { gfm } from "@milkdown/kit/preset/gfm";
 import { history } from "@milkdown/kit/plugin/history";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
-import { getMarkdown, replaceAll } from "@milkdown/kit/utils";
+import { getMarkdown, replaceAll, insert } from "@milkdown/kit/utils";
 import { unemojify } from "node-emoji";
 import { math } from "@milkdown/plugin-math";
 import { emoji } from "@milkdown/plugin-emoji";
+import { $prose } from "@milkdown/kit/utils";
+import { gapCursor } from "@milkdown/kit/prose/gapcursor";
+import { NodeSelection, Plugin } from "@milkdown/kit/prose/state";
 import "katex/dist/katex.min.css";
+import "@milkdown/kit/prose/gapcursor/style/gapcursor.css";
+import "@milkdown/kit/prose/view/style/prosemirror.css";
+import {
+  remarkHighlight,
+  highlightSchema,
+  highlightInputRule,
+  highlightStringifyHandlers,
+} from "./plugins/highlight";
+import {
+  remarkSupersub,
+  superscriptSchema,
+  subscriptSchema,
+  superscriptInputRule,
+  subscriptInputRule,
+  supersuperStringifyHandlers,
+} from "./plugins/supersub";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { CheckMenuItem } from "@tauri-apps/api/menu";
 import { useFileStore } from "./store/fileStore";
 import "./App.css";
 
+// フロントマター抽出ユーティリティ
+const FRONTMATTER_RE = /^(---\n[\s\S]*?\n---)\n?/;
+function extractFrontmatter(content: string): { fm: string; body: string } {
+  const match = FRONTMATTER_RE.exec(content);
+  if (match) {
+    return { fm: match[1] + "\n", body: content.slice(match[0].length) };
+  }
+  return { fm: "", body: content };
+}
+
+// フロントマター表示・編集ブロック
+function FrontMatterBlock({
+  frontmatter,
+  onChange,
+}: {
+  frontmatter: string;
+  onChange: (raw: string) => void;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (taRef.current) {
+      taRef.current.value = frontmatter
+        .replace(/^---\n/, "")
+        .replace(/\n---\n?$/, "");
+    }
+  }, [frontmatter]);
+
+  return (
+    <div className="frontmatter-block" style={{ display: frontmatter ? "block" : "none" }}>
+      <div className="frontmatter-label">YAML Front Matter</div>
+      <textarea
+        ref={taRef}
+        className="frontmatter-editor"
+        onChange={(e) => onChange(`---\n${e.target.value}\n---\n`)}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+      />
+    </div>
+  );
+}
+
 interface EditorRef {
   getContent: () => string;
   setContent: (md: string) => void;
+  insertContent: (md: string) => void;
 }
 
 function MilkdownEditor({
@@ -35,7 +98,13 @@ function MilkdownEditor({
       .config((ctx) => {
         ctx.set(rootCtx, root);
         ctx.set(defaultValueCtx, "");
-        ctx.set(remarkStringifyOptionsCtx, { bullet: "-" });
+        ctx.set(remarkStringifyOptionsCtx, {
+          bullet: "-",
+          handlers: {
+            ...highlightStringifyHandlers,
+            ...supersuperStringifyHandlers,
+          } as any,
+        });
         ctx.get(listenerCtx).markdownUpdated(() => {
           onDirty();
         });
@@ -47,6 +116,28 @@ function MilkdownEditor({
       .use(listener)
       .use(math)
       .use(emoji)
+      .use(remarkHighlight)
+      .use(highlightSchema)
+      .use(highlightInputRule)
+      .use(remarkSupersub)
+      .use(superscriptSchema)
+      .use(subscriptSchema)
+      .use(superscriptInputRule)
+      .use(subscriptInputRule)
+      .use($prose(() => gapCursor()))
+      .use($prose(() => new Plugin({
+        props: {
+          handleClickOn(view, _pos, node, nodePos, _event, direct) {
+            if (direct && node.type.name === "hr") {
+              view.dispatch(
+                view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos))
+              );
+              return true;
+            }
+            return false;
+          },
+        },
+      })))
   );
 
   useEffect(() => {
@@ -55,6 +146,7 @@ function MilkdownEditor({
       editorRef.current = {
         getContent: () => editor.action(getMarkdown()),
         setContent: (md: string) => editor.action(replaceAll(md)),
+        insertContent: (md: string) => editor.action(insert(md)),
       };
     }
   });
@@ -67,7 +159,13 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isLoadingRef = useRef(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
+  const [frontmatter, setFrontmatter] = useState("");
+  const frontmatterRef = useRef("");
   const { currentPath, isDirty, setCurrentPath, setIsDirty } = useFileStore();
+
+  const handleFrontmatterChange = useCallback((raw: string) => {
+    frontmatterRef.current = raw;
+  }, []);
 
   // ハンドラーを常に最新に保つ ref（メニュークロージャ用）
   const handlersRef = useRef({
@@ -95,16 +193,18 @@ function App() {
     }
   }, [setIsDirty]);
 
-  // 現在のモードに応じてコンテンツを取得
+  // 現在のモードに応じてコンテンツを取得（フロントマターを含む）
   const getCurrentContent = useCallback(() => {
     if (isSourceMode) {
       return textareaRef.current?.value ?? "";
     }
-    return editorRef.current?.getContent() ?? "";
+    return frontmatterRef.current + (editorRef.current?.getContent() ?? "");
   }, [isSourceMode]);
 
   const handleNew = useCallback(() => {
     isLoadingRef.current = true;
+    frontmatterRef.current = "";
+    setFrontmatter("");
     editorRef.current?.setContent("");
     if (textareaRef.current) textareaRef.current.value = "";
     setCurrentPath(null);
@@ -126,8 +226,11 @@ function App() {
     if (!selected) return;
 
     const content = await readTextFile(selected as string);
+    const { fm, body } = extractFrontmatter(content);
+    frontmatterRef.current = fm;
+    setFrontmatter(fm);
     isLoadingRef.current = true;
-    editorRef.current?.setContent(content);
+    editorRef.current?.setContent(body);
     if (textareaRef.current) textareaRef.current.value = content;
     setCurrentPath(selected as string);
     setIsDirty(false);
@@ -162,22 +265,73 @@ function App() {
   // WYSIWYGモード ↔ ソースモード切替
   const handleToggleSource = useCallback(() => {
     if (!isSourceMode) {
-      const md = unemojify(editorRef.current?.getContent() ?? "");
+      // WYSIWYG → ソース：フロントマター + 本文をtextareaにセット
+      // 空段落が <br /> にシリアライズされるので空行に置換する
+      const rawMd = unemojify(editorRef.current?.getContent() ?? "");
+      const md = rawMd.replace(/^<br\s*\/?>\s*$/gm, "");
       if (textareaRef.current) {
-        textareaRef.current.value = md;
+        textareaRef.current.value = frontmatterRef.current + md;
       }
       setIsSourceMode(true);
       setTimeout(() => textareaRef.current?.focus(), 0);
     } else {
-      const md = textareaRef.current?.value ?? "";
+      // ソース → WYSIWYG：フロントマターを再抽出して本文だけMilkdownへ
+      const full = textareaRef.current?.value ?? "";
+      const { fm, body } = extractFrontmatter(full);
+      frontmatterRef.current = fm;
+      setFrontmatter(fm);
       isLoadingRef.current = true;
-      editorRef.current?.setContent(md);
+      editorRef.current?.setContent(body);
       setTimeout(() => {
         isLoadingRef.current = false;
       }, 0);
       setIsSourceMode(false);
     }
   }, [isSourceMode]);
+
+  // 画像ペースト処理
+  const handleImagePaste = useCallback(async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const ext = file.type.split("/")[1] || "png";
+    const filename = `image-${Date.now()}.${ext}`;
+
+    let imagePath: string;
+    if (currentPath) {
+      const dir = currentPath.replace(/[\\/][^\\/]+$/, "");
+      const imagesDir = `${dir}/images`;
+      await mkdir(imagesDir, { recursive: true });
+      await writeFile(`${imagesDir}/${filename}`, bytes);
+      imagePath = `./images/${filename}`;
+    } else {
+      const base64 = btoa(
+        String.fromCharCode(...new Uint8Array(arrayBuffer))
+      );
+      imagePath = `data:${file.type};base64,${base64}`;
+    }
+
+    editorRef.current?.insertContent(`\n![](${imagePath})\n`);
+    setIsDirty(true);
+  }, [currentPath, setIsDirty]);
+
+  // WYSIWYGモードでのペーストイベント（画像検出）
+  useEffect(() => {
+    if (isSourceMode) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) handleImagePaste(file);
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isSourceMode, handleImagePaste]);
 
   // ハンドラー ref を最新に保つ
   useEffect(() => {
@@ -261,6 +415,18 @@ function App() {
     };
   }, []);
 
+  // Ctrl+/ キーボードショートカット（CheckMenuItemのacceleratorが機能しないため）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '/') {
+        e.preventDefault();
+        handlersRef.current.handleToggleSource();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // ソースモード切替時にメニューのチェックマークを更新
   useEffect(() => {
     toggleSourceItemRef.current?.setChecked(isSourceMode).catch(() => {});
@@ -272,6 +438,7 @@ function App() {
         <div className="editor-main">
           {/* WYSIWYGエディター：ソースモード時は非表示（アンマウントしない） */}
           <div style={{ display: isSourceMode ? "none" : "block", height: "100%" }}>
+            <FrontMatterBlock frontmatter={frontmatter} onChange={handleFrontmatterChange} />
             <MilkdownEditor editorRef={editorRef} onDirty={handleDirty} />
           </div>
           {/* ソースエディター：常時マウント、WYSIWYGモード時は非表示 */}

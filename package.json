@@ -23,12 +23,18 @@
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-opener": "^2",
+    "@types/js-yaml": "^4.0.9",
     "@types/katex": "^0.16.8",
+    "js-yaml": "^4.1.1",
     "katex": "^0.16.38",
+    "mdast-util-mark": "^1.0.0",
+    "micromark-extension-mark": "^1.0.2",
     "node-emoji": "^2.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "remark-frontmatter": "^5.0.0",
     "remark-math": "^6.0.0",
+    "remark-supersub": "^1.0.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
