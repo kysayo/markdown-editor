@@ -2,15 +2,18 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "editor-*"],
   "permissions": [
     "core:default",
     "core:window:allow-set-title",
+    "core:window:allow-close",
     "opener:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    "core:window:allow-set-icon",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
-    "fs:allow-create"
+    "fs:allow-create",
+    "core:webview:allow-create-webview-window"
   ]
 }

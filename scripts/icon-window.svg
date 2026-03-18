@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Windows Notepad 風: リング綴じノート（色は少しティール寄り） -->
+
+  <!-- 背景の紙（少しクリーム寄りの白） -->
+  <rect x="88" y="30" width="340" height="452" rx="8" ry="8" fill="#FAFAFA"/>
+
+  <!-- 横罫線（5本、ティールブルー） -->
+  <line x1="112" y1="155" x2="412" y2="155" stroke="#4BA0BE" stroke-width="6"/>
+  <line x1="112" y1="215" x2="412" y2="215" stroke="#4BA0BE" stroke-width="6"/>
+  <line x1="112" y1="275" x2="412" y2="275" stroke="#4BA0BE" stroke-width="6"/>
+  <line x1="112" y1="335" x2="412" y2="335" stroke="#4BA0BE" stroke-width="6"/>
+  <line x1="112" y1="395" x2="412" y2="395" stroke="#4BA0BE" stroke-width="6"/>
+
+  <!-- 紙の外枠 -->
+  <rect x="88" y="30" width="340" height="452" rx="8" ry="8"
+    fill="none" stroke="#C8D8E4" stroke-width="3"/>
+
+  <!-- バインダー帯（左側の濃いグレーブルー帯） -->
+  <rect x="64" y="30" width="56" height="452" rx="8" ry="8" fill="#5A7A8A"/>
+  <!-- 帯の右端をまっすぐにするための矩形（rx対策） -->
+  <rect x="96" y="30" width="24" height="452" fill="#5A7A8A"/>
+
+  <!-- スパイラルリング（6個、ライトグレー） -->
+  <!-- 各リングは上半円 + 下半円で表現 -->
+  <!-- リング1 (y=72) -->
+  <path d="M76,60 A18,18 0 0,1 76,96" fill="none" stroke="#C0D0D8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M108,96 A18,18 0 0,1 108,60" fill="none" stroke="#A0B5C0" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- リング2 (y=142) -->
+  <path d="M76,130 A18,18 0 0,1 76,166" fill="none" stroke="#C0D0D8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M108,166 A18,18 0 0,1 108,130" fill="none" stroke="#A0B5C0" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- リング3 (y=212) -->
+  <path d="M76,200 A18,18 0 0,1 76,236" fill="none" stroke="#C0D0D8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M108,236 A18,18 0 0,1 108,200" fill="none" stroke="#A0B5C0" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- リング4 (y=282) -->
+  <path d="M76,270 A18,18 0 0,1 76,306" fill="none" stroke="#C0D0D8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M108,306 A18,18 0 0,1 108,270" fill="none" stroke="#A0B5C0" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- リング5 (y=352) -->
+  <path d="M76,340 A18,18 0 0,1 76,376" fill="none" stroke="#C0D0D8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M108,376 A18,18 0 0,1 108,340" fill="none" stroke="#A0B5C0" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- リング6 (y=422) -->
+  <path d="M76,410 A18,18 0 0,1 76,446" fill="none" stroke="#C0D0D8" stroke-width="7" stroke-linecap="round"/>
+  <path d="M108,446 A18,18 0 0,1 108,410" fill="none" stroke="#A0B5C0" stroke-width="7" stroke-linecap="round"/>
+</svg>
