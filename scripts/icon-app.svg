@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#00000028"/>
+    </filter>
+    <!-- Dog-ear fold gradient -->
+    <linearGradient id="foldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D0D8E8"/>
+      <stop offset="100%" style="stop-color:#B8C4D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Paper shadow -->
+  <polygon points="44,44 396,44 464,112 464,468 44,468"
+    fill="#C8CCE0" filter="url(#shadow)" transform="translate(4,8)"/>
+
+  <!-- Paper body -->
+  <polygon points="44,44 396,44 464,112 464,468 44,468" fill="#FAFBFF"/>
+
+  <!-- Dog-ear fold triangle -->
+  <polygon points="396,44 464,112 396,112" fill="url(#foldGrad)"/>
+  <!-- Fold crease lines -->
+  <line x1="396" y1="44" x2="396" y2="112" stroke="#C0CCE0" stroke-width="2"/>
+  <line x1="396" y1="112" x2="464" y2="112" stroke="#C0CCE0" stroke-width="2"/>
+
+  <!-- === Heading bar (indigo) === -->
+  <!-- Hash symbol blocks -->
+  <rect x="60" y="80" width="10" height="38" rx="3" fill="#4338CA"/>
+  <rect x="76" y="80" width="10" height="38" rx="3" fill="#4338CA"/>
+  <rect x="58" y="94" width="32" height="8" rx="2" fill="#4338CA"/>
+  <!-- Heading text bar -->
+  <rect x="100" y="83" width="240" height="14" rx="5" fill="#4F46E5"/>
+  <rect x="100" y="104" width="180" height="10" rx="4" fill="#818CF8" opacity="0.7"/>
+
+  <!-- Divider -->
+  <line x1="60" y1="140" x2="440" y2="140" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- === Bold text lines (violet/purple) === -->
+  <rect x="60" y="158" width="280" height="18" rx="5" fill="#7C3AED"/>
+  <rect x="60" y="186" width="320" height="18" rx="5" fill="#7C3AED" opacity="0.85"/>
+  <rect x="60" y="214" width="220" height="18" rx="5" fill="#7C3AED" opacity="0.6"/>
+
+  <!-- Divider -->
+  <line x1="60" y1="252" x2="440" y2="252" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- === List items (teal) === -->
+  <!-- Item 1 -->
+  <circle cx="78" cy="282" r="9" fill="#0D9488"/>
+  <rect x="100" y="273" width="230" height="18" rx="5" fill="#0D9488" opacity="0.9"/>
+
+  <!-- Item 2 -->
+  <circle cx="78" cy="320" r="9" fill="#0D9488"/>
+  <rect x="100" y="311" width="200" height="18" rx="5" fill="#0D9488" opacity="0.8"/>
+
+  <!-- Item 3 -->
+  <circle cx="78" cy="358" r="9" fill="#0D9488"/>
+  <rect x="100" y="349" width="160" height="18" rx="5" fill="#0D9488" opacity="0.65"/>
+
+  <!-- Bottom dim lines (filler text) -->
+  <rect x="60" y="400" width="280" height="10" rx="3" fill="#CBD5E1"/>
+  <rect x="60" y="420" width="220" height="10" rx="3" fill="#CBD5E1"/>
+  <rect x="60" y="440" width="160" height="10" rx="3" fill="#CBD5E1"/>
+
+  <!-- Paper border -->
+  <polygon points="44,44 396,44 464,112 464,468 44,468"
+    fill="none" stroke="#DDE3F0" stroke-width="2.5"/>
+</svg>
