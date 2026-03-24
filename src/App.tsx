@@ -273,7 +273,7 @@ function App() {
   const handlersRef = useRef({
     handleNewWindow: async () => {},
     handleNewTab: () => {},
-    handleCloseTab: async (id?: string) => {},
+    handleCloseTab: async (_id?: string) => {},
     handleOpen: async () => {},
     handleSave: async () => {},
     handleSaveAs: async () => {},

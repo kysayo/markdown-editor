@@ -4,9 +4,8 @@ import { pandocMark } from "micromark-extension-mark";
 import { pandocMarkFromMarkdown, pandocMarkToMarkdown } from "mdast-util-mark";
 
 // remark プラグイン: micromark-extension-mark を使って ==text== を解析
-function remarkMarkPlugin() {
-  const self = this as any;
-  const data = self.data();
+function remarkMarkPlugin(this: any) {
+  const data = this.data();
   (data.micromarkExtensions ??= []).push(pandocMark());  // 呼び出し結果を登録
   (data.fromMarkdownExtensions ??= []).push(pandocMarkFromMarkdown);
 }

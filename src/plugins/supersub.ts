@@ -3,7 +3,7 @@ import { markRule } from "@milkdown/prose";
 import supersubPlugin from "remark-supersub";
 
 // remark プラグイン: remark-supersub を使って ^text^ / ~text~ を解析
-export const remarkSupersub = $remark("supersub", () => supersubPlugin);
+export const remarkSupersub = $remark("supersub", () => supersubPlugin as any);
 
 // superscript マークスキーマ（^text^）
 export const superscriptSchema = $markSchema("superscript", () => ({
