@@ -350,6 +350,22 @@ pnpm tauri build
 
 ---
 
+## ビルド・配布に関する注意事項
+
+### WiX（MSIインストーラー）と日本語文字列
+
+`pnpm tauri build` でWindowsのMSIインストーラーを生成する際、TauriはWiX Toolsetを使用する。
+WiXはデフォルトでコードページ1252（西ヨーロッパ言語用）でテキストを処理するため、**日本語文字列を含むとビルドエラー**になる。
+
+影響する箇所：`tauri.conf.json` 内の文字列フィールド（`productName`、`fileAssociations[].description` など）
+
+**ルール：`tauri.conf.json` に書く文字列は英語のみにする。**
+
+NSISインストーラー（`.exe` セットアップ）はUnicodeに対応しているため日本語でも問題ないが、
+MSIと共通の設定ファイルを使うため、実質的に英語縛りで統一するのが安全。
+
+---
+
 ## 参考
 
 - [MarkText（参考にするエディター）](https://github.com/marktext/marktext)
