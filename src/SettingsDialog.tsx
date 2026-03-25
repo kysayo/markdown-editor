@@ -9,7 +9,7 @@ function clamp(v: number, min: number, max: number) {
 }
 
 export function SettingsDialog({ onClose }: Props) {
-  const { headingSpacing, listSpacing, setHeadingSpacing, setListSpacing } =
+  const { headingSpacing, listSpacing, tableCellPaddingV, tableIndent, setHeadingSpacing, setListSpacing, setTableCellPaddingV, setTableIndent } =
     useSettingsStore();
 
   return (
@@ -72,6 +72,64 @@ export function SettingsDialog({ onClose }: Props) {
             step="0.05"
             value={listSpacing}
             onChange={(e) => setListSpacing(parseFloat(e.target.value))}
+          />
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-row-header">
+            <span>表の行間</span>
+            <span className="settings-number-wrap">
+              <input
+                type="number"
+                className="settings-number-input"
+                min="0.0"
+                max="1.0"
+                step="0.05"
+                value={tableCellPaddingV}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) setTableCellPaddingV(clamp(v, 0.0, 1.0));
+                }}
+              />
+              <span className="settings-unit">em</span>
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.0"
+            max="1.0"
+            step="0.05"
+            value={tableCellPaddingV}
+            onChange={(e) => setTableCellPaddingV(parseFloat(e.target.value))}
+          />
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-row-header">
+            <span>表のインデント</span>
+            <span className="settings-number-wrap">
+              <input
+                type="number"
+                className="settings-number-input"
+                min="0.0"
+                max="5.0"
+                step="0.25"
+                value={tableIndent}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) setTableIndent(clamp(v, 0.0, 5.0));
+                }}
+              />
+              <span className="settings-unit">em</span>
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.0"
+            max="5.0"
+            step="0.25"
+            value={tableIndent}
+            onChange={(e) => setTableIndent(parseFloat(e.target.value))}
           />
         </div>
 

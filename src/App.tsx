@@ -268,6 +268,8 @@ function App() {
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
   const [frontmatter, setFrontmatter] = useState("");
+  const [fontSize, setFontSize] = useState(16);
+  const fontSizeRef = useRef(16);
 
   // ハンドラーを常に最新に保つ ref（メニュー・keydown クロージャ用）
   const handlersRef = useRef({
@@ -285,7 +287,7 @@ function App() {
   });
 
   const toggleSourceItemRef = useRef<CheckMenuItem | null>(null);
-  const { headingSpacing, listSpacing } = useSettingsStore();
+  const { headingSpacing, listSpacing, tableCellPaddingV, tableIndent } = useSettingsStore();
 
   // tabsRef を最新に保つ
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
@@ -294,7 +296,47 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--heading-spacing", `${headingSpacing}em`);
     document.documentElement.style.setProperty("--list-spacing", `${listSpacing}em`);
-  }, [headingSpacing, listSpacing]);
+    document.documentElement.style.setProperty("--table-cell-padding-v", `${tableCellPaddingV}em`);
+    document.documentElement.style.setProperty("--table-indent", `${tableIndent}em`);
+  }, [headingSpacing, listSpacing, tableCellPaddingV, tableIndent]);
+
+  // フォントサイズ ref を最新に保つ
+  useEffect(() => { fontSizeRef.current = fontSize; }, [fontSize]);
+
+  // CSS 変数でフォントサイズをリアルタイム反映
+  useEffect(() => {
+    document.documentElement.style.setProperty("--editor-font-size", `${fontSize}px`);
+  }, [fontSize]);
+
+  // Ctrl+ホイール / Ctrl+0 でズーム
+  useEffect(() => {
+    const clampSize = (v: number) => Math.min(32, Math.max(10, v));
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 1 : -1;
+      setFontSize(prev => clampSize(prev + delta));
+    };
+    const handleZoomKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return;
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        setFontSize(prev => clampSize(prev + 1));
+      } else if (e.key === '-') {
+        e.preventDefault();
+        setFontSize(prev => clampSize(prev - 1));
+      } else if (e.key === '0') {
+        e.preventDefault();
+        setFontSize(16);
+      }
+    };
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('keydown', handleZoomKey, { capture: true });
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('keydown', handleZoomKey, { capture: true });
+    };
+  }, []);
 
   // ウィンドウタイトルをアクティブタブに合わせて更新
   useEffect(() => {
@@ -978,6 +1020,7 @@ function App() {
           <span className="status-mode">
             {isSourceMode ? "ソースモード" : "WYSIWYGモード"}
           </span>
+          <span style={{ marginLeft: "auto" }}>{fontSize}px</span>
         </div>
       </div>
     </MilkdownProvider>

@@ -3,6 +3,9 @@
 :root {
   --heading-spacing: 0.9em;
   --list-spacing: 0.75em;
+  --table-cell-padding-v: 0.3em;
+  --table-indent: 0em;
+  --editor-font-size: 16px;
 }
 
 /* アプリ全体レイアウト */
@@ -26,7 +29,7 @@
   height: 100%;
   padding: 2rem 3rem;
   font-family: "Consolas", "Courier New", monospace;
-  font-size: 14px;
+  font-size: var(--editor-font-size);
   line-height: 1.7;
   color: #1e293b;
   background: #fff;
@@ -205,6 +208,7 @@
   max-width: 860px;
   margin: 0 auto;
   outline: none;
+  font-size: var(--editor-font-size);
 }
 
 /* Markdown レンダリングスタイル */
@@ -214,10 +218,10 @@
 .milkdown .editor h2 { font-size: 1.5em; font-weight: bold; margin: calc(var(--heading-spacing) * 1.2) 0; }
 .milkdown .editor h3 { font-size: 1.17em; font-weight: bold; margin: var(--heading-spacing) 0; }
 .milkdown .editor p { margin: 0.75em 0; line-height: 1.7; }
-.milkdown .editor ul { list-style: disc; padding-left: 1.5em; }
+.milkdown .editor ul { list-style: disc; padding-left: 2em; }
 .milkdown .editor ul ul { list-style: circle; }
 .milkdown .editor ul ul ul { list-style: square; }
-.milkdown .editor ol { list-style: decimal; padding-left: 1.5em; }
+.milkdown .editor ol { list-style: decimal; padding-left: 2em; }
 .milkdown .editor li { margin: var(--list-spacing) 0; }
 .milkdown .editor li > p { margin-top: 0; margin-bottom: 0; line-height: 1.7; }
 .milkdown .editor blockquote {
@@ -264,18 +268,22 @@
 }
 .milkdown .editor table {
   border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
+  width: auto;
+  margin: 1em 0 1em var(--table-indent);
 }
 .milkdown .editor th,
 .milkdown .editor td {
   border: 1px solid #cbd5e1;
-  padding: 0.5em 0.75em;
+  padding: var(--table-cell-padding-v) 0.75em;
   text-align: left;
 }
 .milkdown .editor th {
   background: #f1f5f9;
   font-weight: 600;
+}
+.milkdown .editor td > p,
+.milkdown .editor th > p {
+  margin: 0;
 }
 
 /* 設定ダイアログ */
