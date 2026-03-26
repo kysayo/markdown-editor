@@ -268,8 +268,17 @@ function App() {
   const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
   const [frontmatter, setFrontmatter] = useState("");
-  const [fontSize, setFontSize] = useState(16);
-  const fontSizeRef = useRef(16);
+  const [fontSize, setFontSize] = useState(() => {
+    try {
+      const stored = localStorage.getItem("md-editor-font-size");
+      if (stored) {
+        const v = Number(stored);
+        if (v >= 10 && v <= 32) return v;
+      }
+    } catch { /* ignore */ }
+    return 16;
+  });
+  const fontSizeRef = useRef(fontSize);
 
   // ハンドラーを常に最新に保つ ref（メニュー・keydown クロージャ用）
   const handlersRef = useRef({
@@ -303,9 +312,10 @@ function App() {
   // フォントサイズ ref を最新に保つ
   useEffect(() => { fontSizeRef.current = fontSize; }, [fontSize]);
 
-  // CSS 変数でフォントサイズをリアルタイム反映
+  // CSS 変数でフォントサイズをリアルタイム反映 + localStorage 保存
   useEffect(() => {
     document.documentElement.style.setProperty("--editor-font-size", `${fontSize}px`);
+    try { localStorage.setItem("md-editor-font-size", String(fontSize)); } catch { /* ignore */ }
   }, [fontSize]);
 
   // Ctrl+ホイール / Ctrl+0 でズーム
