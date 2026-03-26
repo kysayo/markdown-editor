@@ -24,13 +24,13 @@ export function SettingsDialog({ onClose }: Props) {
               <input
                 type="number"
                 className="settings-number-input"
-                min="0.3"
+                min="0.0"
                 max="2.0"
                 step="0.1"
                 value={headingSpacing}
                 onChange={(e) => {
                   const v = parseFloat(e.target.value);
-                  if (!isNaN(v)) setHeadingSpacing(clamp(v, 0.3, 2.0));
+                  if (!isNaN(v)) setHeadingSpacing(clamp(v, 0.0, 2.0));
                 }}
               />
               <span className="settings-unit">em</span>
@@ -38,7 +38,7 @@ export function SettingsDialog({ onClose }: Props) {
           </div>
           <input
             type="range"
-            min="0.3"
+            min="0.0"
             max="2.0"
             step="0.1"
             value={headingSpacing}
