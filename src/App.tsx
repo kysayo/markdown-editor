@@ -39,6 +39,7 @@ import { readTextFile, writeTextFile, writeFile, mkdir } from "@tauri-apps/plugi
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Image as TauriImage } from "@tauri-apps/api/image";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { invoke } from "@tauri-apps/api/core";
 import type { CheckMenuItem } from "@tauri-apps/api/menu";
 import { useTabStore, type Tab } from "./store/fileStore";
 import { useSettingsStore } from "./store/settingsStore";
@@ -102,10 +103,12 @@ function MilkdownEditor({
   editorRef,
   onDirty,
   onSelectionChange,
+  onReady,
 }: {
   editorRef: React.RefObject<EditorRef | null>;
   onDirty: () => void;
   onSelectionChange: (info: SelectionInfo | null) => void;
+  onReady?: () => void;
 }) {
   const selectionCallbackRef = useRef(onSelectionChange);
   useEffect(() => { selectionCallbackRef.current = onSelectionChange; });
@@ -188,6 +191,7 @@ function MilkdownEditor({
   useEffect(() => {
     const editor = get();
     if (editor) {
+      const isFirstInit = !editorRef.current;
       editorRef.current = {
         getContent: () => editor.action(getMarkdown()),
         setContent: (md: string) => editor.action(replaceAll(md)),
@@ -241,6 +245,7 @@ function MilkdownEditor({
           (view.dom as HTMLElement).focus({ preventScroll: true });
         }),
       };
+      if (isFirstInit) onReady?.();
     }
   });
 
@@ -257,6 +262,8 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isLoadingRef = useRef(false);
   const frontmatterRef = useRef("");
+  // 起動時CLI引数のファイル（エディター初期化完了まで保留）
+  const pendingInitialFileRef = useRef<{ path: string; content: string } | null>(null);
   // tabs の最新値を非リアクティブに参照するための ref
   const tabsRef = useRef(tabs);
   // switchToTab が activeTabId 変化エフェクトの二重ロードを防ぐガード
@@ -293,6 +300,7 @@ function App() {
     handleSwitchTabNext: () => {},
     handleOpenSettings: () => {},
     handleDragDropFile: async (_filePath: string) => {},
+    handleOpenInitialFile: (_path: string, _content: string) => {},
   });
 
   const toggleSourceItemRef = useRef<CheckMenuItem | null>(null);
@@ -721,10 +729,21 @@ function App() {
           switchToTab(newTabId);
         }
       },
+      handleOpenInitialFile: (path: string, content: string) => {
+        const { fm, body } = extractFrontmatter(content);
+        frontmatterRef.current = fm;
+        setFrontmatter(fm);
+        isLoadingRef.current = true;
+        editorRef.current?.setContent(body);
+        if (textareaRef.current) textareaRef.current.value = content;
+        updateTab(activeTabId, { filePath: path, isDirty: false, savedContent: content, isSourceMode: false });
+        setIsSourceMode(false);
+        setTimeout(() => { isLoadingRef.current = false; }, 0);
+      },
     };
   }, [handleNewWindow, handleNewTab, handleCloseTab, handleOpen, handleSave, handleSaveAs,
       handleToggleSource, handleSwitchTabPrev, handleSwitchTabNext,
-      handleLoadFile, getCurrentContent, addTab, switchToTab]);
+      handleLoadFile, getCurrentContent, addTab, switchToTab, activeTabId, updateTab]);
 
   // タスクバー用ウィンドウアイコンをセット
   useEffect(() => {
@@ -964,6 +983,28 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isSourceMode]);
 
+  // エディター初期化完了時に保留中の起動ファイルを開く
+  const handleEditorReady = useCallback(() => {
+    const pending = pendingInitialFileRef.current;
+    if (pending) {
+      pendingInitialFileRef.current = null;
+      handlersRef.current.handleOpenInitialFile(pending.path, pending.content);
+    }
+  }, []);
+
+  // 起動時CLIファイルパス取得（ダブルクリック起動対応）
+  // Rustでファイルを読んで返す（fs scope制限を回避）
+  useEffect(() => {
+    invoke<{ path: string; content: string } | null>("get_initial_file").then((file) => {
+      if (!file) return;
+      if (editorRef.current) {
+        handlersRef.current.handleOpenInitialFile(file.path, file.content);
+      } else {
+        pendingInitialFileRef.current = file;
+      }
+    }).catch(console.error);
+  }, []);
+
   // .mdファイルのドラッグ&ドロップで常に新タブで開く
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -1011,6 +1052,7 @@ function App() {
               editorRef={editorRef}
               onDirty={handleDirty}
               onSelectionChange={handleSelectionChange}
+              onReady={handleEditorReady}
             />
           </div>
           <textarea
