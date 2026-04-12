@@ -34,8 +34,8 @@ import {
 } from "./plugins/supersub";
 import { underlineSchema, underlineStringifyHandlers } from "./plugins/underline";
 import { TableInsertDialog } from "./TableInsertDialog";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile, writeFile, mkdir } from "@tauri-apps/plugin-fs";
+import { open, save, message } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Image as TauriImage } from "@tauri-apps/api/image";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -511,7 +511,7 @@ function App() {
       defaultPath: "untitled.md",
     });
     if (!filePath) return;
-    await writeTextFile(filePath, content);
+    await invoke('save_file', { path: filePath, content });
     updateTab(activeTabId, { filePath, isDirty: false, savedContent: content });
   }, [getCurrentContent, activeTabId, updateTab]);
 
@@ -520,11 +520,11 @@ function App() {
     if (activeTab.filePath) {
       try {
         const content = getCurrentContent();
-        await writeTextFile(activeTab.filePath, content);
+        await invoke('save_file', { path: activeTab.filePath, content });
         updateTab(activeTabId, { isDirty: false, savedContent: content });
       } catch (e) {
         console.error("handleSave failed:", e);
-        alert(`保存に失敗しました:\n${e}`);
+        await message(`保存に失敗しました:\n${e}`, { kind: 'error' });
       }
     } else {
       await handleSaveAs();

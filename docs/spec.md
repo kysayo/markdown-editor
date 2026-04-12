@@ -302,8 +302,25 @@ GFM テーブルの構造: `table > table_header_row > table_header`（ヘッダ
 Rust 側の変更のため、追加後はアプリの再起動が必要。
 
 - `core:window:allow-set-title` — ウィンドウタイトルの変更（`getCurrentWindow().setTitle()`）
-- `dialog:allow-open` / `dialog:allow-save` — ファイルダイアログ
+- `dialog:allow-open` / `dialog:allow-save` / `dialog:allow-message` — ファイルダイアログ・エラーダイアログ
 - `fs:allow-read-text-file` / `fs:allow-write-text-file` / `fs:allow-create` — ファイル読み書き
+
+### ファイル保存の実装（Rust コマンド経由）
+
+`writeTextFile`（Tauri fs プラグイン）はダイアログ経由でないパス（CLI 引数から取得したパス等）でサイレント失敗する（`readTextFile` と同じ制限）。
+また `alert()` が Tauri WebView で動作しないため、エラーが完全に無音になる。
+
+**対策**：`save_file` Rust コマンドを追加し、`std::fs::write` で直接書き込む。`readTextFile` を回避するために `get_initial_file` を追加した設計と同じパターン。
+
+```rust
+#[tauri::command]
+fn save_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
+}
+```
+
+フロントエンドからは `invoke('save_file', { path, content })` で呼び出す。
+エラー表示は `alert()` の代わりに `message()` from `@tauri-apps/plugin-dialog` を使用（`dialog:allow-message` 権限が必要）。
 
 ### Ctrl+Shift+V（プレーンテキスト貼り付け）の実装
 

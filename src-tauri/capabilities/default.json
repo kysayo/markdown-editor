@@ -10,6 +10,7 @@
     "opener:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    "dialog:allow-message",
     "core:window:allow-set-icon",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
